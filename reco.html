@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Invoice Reconciliation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ─────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:    #0f2243;
+      --blue:    #1a56a8;
+      --sky:     #3d8bdb;
+      --accent:  #2dd4bf;
+      --danger:  #e05252;
+      --warn:    #e8983a;
+      --success: #27a96c;
+      --surface: #f4f6fb;
+      --card:    #ffffff;
+      --border:  #d5dde8;
+      --text:    #1e2a3a;
+      --muted:   #6b7a90;
+      --mono:    'IBM Plex Mono', monospace;
+      --sans:    'IBM Plex Sans', sans-serif;
+      --radius:  8px;
+      --shadow:  0 2px 12px rgba(15,34,67,0.10);
+      --shadow-lg: 0 8px 32px rgba(15,34,67,0.14);
+    }
+
+    html { font-size: 16px; }
+    body {
+      font-family: var(--sans);
+      background: var(--surface);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────── */
+    header {
+      background: var(--navy);
+      padding: 0 2.5rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.22);
+    }
+    .logo-mark {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--navy);
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 0.02em;
+    }
+    header .subtitle {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.45);
+      font-family: var(--mono);
+      margin-left: auto;
+    }
+
+    /* ── Main layout ─────────────────────────────── */
+    main {
+      flex: 1;
+      max-width: 920px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    /* ── Section label ───────────────────────────── */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 0.65rem;
+    }
+
+    /* ── Card ────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.75rem 2rem;
+    }
+
+    /* ── Upload grid ─────────────────────────────── */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 600px) { .upload-grid { grid-template-columns: 1fr; } }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .upload-zone:hover,
+    .upload-zone.dragover { border-color: var(--sky); background: #f0f6ff; }
+    .upload-zone.file-loaded { border-color: var(--success); border-style: solid; background: #f0fdf6; }
+    .upload-zone.file-loaded .zone-icon { color: var(--success); }
+
+    .upload-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .zone-icon {
+      font-size: 2rem;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .zone-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+    }
+    .zone-hint {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .zone-filename {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--success);
+      background: #e6faf1;
+      border-radius: 4px;
+      padding: 2px 8px;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: none;
+    }
+    .file-loaded .zone-filename { display: block; }
+
+    /* ── Buttons ─────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.4rem;
+      border-radius: 6px;
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+      text-decoration: none;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(26,86,168,0.28);
+    }
+    .btn-primary:hover { background: #1648a0; box-shadow: 0 4px 14px rgba(26,86,168,0.35); }
+
+    .btn-accent {
+      background: var(--accent);
+      color: var(--navy);
+      box-shadow: 0 2px 8px rgba(45,212,191,0.30);
+    }
+    .btn-accent:hover { background: #25bfad; }
+
+    /* ── Status / results panel ──────────────────── */
+    #status-panel { display: none; }
+    #status-panel.visible { display: block; }
+
+    .status-message {
+      padding: 0.85rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+    .status-message.processing { background: #eff6ff; color: var(--blue); border: 1px solid #bfdbfe; }
+    .status-message.success    { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
+    .status-message.error      { background: #fff1f2; color: #991b1b; border: 1px solid #fca5a5; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(26,86,168,0.2);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Stats grid ──────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.85rem;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .stat-card .stat-value {
+      font-family: var(--mono);
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--navy);
+      line-height: 1;
+    }
+    .stat-card .stat-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .stat-card.highlight-success .stat-value { color: var(--success); }
+    .stat-card.highlight-warn    .stat-value { color: var(--warn); }
+    .stat-card.highlight-danger  .stat-value { color: var(--danger); }
+    .stat-card.highlight-blue    .stat-value { color: var(--blue); }
+
+    /* ── Download section ────────────────────────── */
+    #download-section { display: none; }
+    #download-section.visible { display: block; }
+
+    .download-banner {
+      background: linear-gradient(135deg, #0f2243 0%, #1a56a8 100%);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .download-banner .dl-info h3 { color: #fff; font-size: 1rem; }
+    .download-banner .dl-info p  { color: rgba(255,255,255,0.6); font-size: 0.78rem; margin-top: 0.2rem; }
+
+    /* ── Validation warnings ─────────────────────── */
+    #warnings { display: none; margin-top: 1rem; }
+    #warnings.visible { display: block; }
+    .warning-list {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      font-size: 0.78rem;
+      color: #92400e;
+    }
+    .warning-list li { margin-left: 1.25rem; margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-mark">IR</div>
+    <h1>Invoice Reconciliation</h1>
+    <span class="subtitle">QBO ↔ ServiceTitan</span>
+  </header>
+
+  <main>
+
+    <!-- Upload section -->
+    <div>
+      <div class="section-label">01 — Upload Files</div>
+      <div class="card">
+        <div class="upload-grid">
+
+          <!-- QBO upload -->
+          <div class="upload-zone" id="zone-qbo" ondragover="handleDrag(event,'zone-qbo')" ondragleave="handleDragLeave(event,'zone-qbo')" ondrop="handleDrop(event,'zone-qbo','qbo_file')">
+            <input type="file" id="qbo_file" accept=".xlsx,.xls" onchange="handleFileSelect(this,'zone-qbo')">
+            <div class="zone-icon">📊</div>
+            <div class="zone-title">QuickBooks Online Export</div>
+            <div class="zone-hint">Invoice List by Customer with Tax<br>.xlsx / .xls</div>
+            <div class="zone-filename" id="qbo-filename">—</div>
+          </div>
+
+          <!-- ST upload -->
+          <div class="upload-zone" id="zone-st" ondragover="handleDrag(event,'zone-st')" ondragleave="handleDragLeave(event,'zone-st')" ondrop="handleDrop(event,'zone-st','st_file')">
+            <input type="file" id="st_file" accept=".xlsx,.xls" onchange="handleFileSelect(this,'zone-st')">
+            <div class="zone-icon">🔧</div>
+            <div class="zone-title">ServiceTitan Export</div>
+            <div class="zone-hint">Invoice Detail by Date<br>.xlsx / .xls</div>
+            <div class="zone-filename" id="st-filename">—</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Run section -->
+    <div>
+      <div class="section-label">02 — Run Reconciliation</div>
+      <div class="card">
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-run" onclick="runReconciliation()">
+            <span>▶</span> Run Reconciliation
+          </button>
+          <span id="run-hint" style="font-size:0.78rem; color:var(--muted);">Upload both files to begin.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status panel -->
+    <div id="status-panel">
+      <div class="section-label">03 — Results</div>
+      <div class="card">
+        <div id="status-message-box"></div>
+        <div class="stats-grid" id="stats-grid" style="display:none;"></div>
+        <div id="warnings">
+          <ul class="warning-list" id="warnings-list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Download section -->
+    <div id="download-section">
+      <div class="section-label">04 — Download Output</div>
+      <div class="download-banner">
+        <div class="dl-info">
+          <h3>Reconciliation File Ready</h3>
+          <p>Excel file with Tax Recon + Total Amount Recon sheets</p>
+        </div>
+        <a class="btn btn-accent" href="/api/download" download="Invoice_Reconciliation.xlsx">
+          ⬇ Download .xlsx
+        </a>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let qboFile = null, stFile = null;
+
+    function handleFileSelect(input, zoneId) {
+      const file = input.files[0];
+      if (!file) return;
+      setZoneFile(zoneId, file);
+      if (zoneId === 'zone-qbo') qboFile = file;
+      else stFile = file;
+      checkReady();
+    }
+
+    function setZoneFile(zoneId, file) {
+      const zone = document.getElementById(zoneId);
+      zone.classList.add('file-loaded');
+      const label = zoneId === 'zone-qbo' ? 'qbo-filename' : 'st-filename';
+      document.getElementById(label).textContent = file.name;
+    }
+
+    function handleDrag(e, zoneId) {
+      e.preventDefault();
+      document.getElementById(zoneId).classList.add('dragover');
+    }
+    function handleDragLeave(e, zoneId) {
+      document.getElementById(zoneId).classList.remove('dragover');
+    }
+    function handleDrop(e, zoneId, inputId) {
+      e.preventDefault();
+      document.getElementById(zoneId).classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const input = document.getElementById(inputId);
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      setZoneFile(zoneId, file);
+      if (zoneId === 'zone-qbo') qboFile = file;
+      else stFile = file;
+      checkReady();
+    }
+
+    function checkReady() {
+      const btn = document.getElementById('btn-run');
+      const hint = document.getElementById('run-hint');
+      if (qboFile && stFile) {
+        btn.disabled = false;
+        hint.textContent = 'Both files uploaded. Ready to reconcile.';
+        hint.style.color = 'var(--success)';
+      } else {
+        btn.disabled = true;
+        hint.textContent = 'Upload both files to begin.';
+        hint.style.color = 'var(--muted)';
+      }
+    }
+
+    // Init: disable run btn
+    document.getElementById('btn-run').disabled = true;
+
+    // Read a File as base64 string (strips the data:...;base64, prefix)
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = () => reject(new Error('Could not read file: ' + file.name));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function runReconciliation() {
+      const panel = document.getElementById('status-panel');
+      const dlSection = document.getElementById('download-section');
+      panel.classList.add('visible');
+      dlSection.classList.remove('visible');
+      document.getElementById('stats-grid').style.display = 'none';
+      document.getElementById('warnings').classList.remove('visible');
+      showStatus('processing', 'Reading files…');
+      document.getElementById('btn-run').disabled = true;
+
+      try {
+        // Encode both files as base64 and send as JSON.
+        // This avoids FormData serialization issues in sandboxed / iframe contexts.
+        showStatus('processing', 'Processing files — this may take a moment…');
+        const [qboB64, stB64] = await Promise.all([
+          fileToBase64(qboFile),
+          fileToBase64(stFile)
+        ]);
+
+        const res = await fetch('/api/reconcile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            qbo_filename: qboFile.name,
+            st_filename:  stFile.name,
+            qbo_data: qboB64,
+            st_data:  stB64
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showStatus('error', '⚠ ' + (data.error || 'Unknown error'));
+          return;
+        }
+
+        showStatus('success', '✓ Reconciliation complete.');
+        renderStats(data);
+        renderWarnings(data);
+        dlSection.classList.add('visible');
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      } catch (err) {
+        showStatus('error', '⚠ Error: ' + err.message);
+      } finally {
+        document.getElementById('btn-run').disabled = false;
+      }
+    }
+
+    function showStatus(type, msg) {
+      const box = document.getElementById('status-message-box');
+      const spinner = type === 'processing' ? '<div class="spinner"></div>' : '';
+      box.innerHTML = `<div class="status-message ${type}">${spinner}<span>${msg}</span></div>`;
+    }
+
+    function renderStats(d) {
+      const grid = document.getElementById('stats-grid');
+      const stats = [
+        { label: 'QBO Records',    value: d.qbo_records,  cls: '' },
+        { label: 'ST Records',     value: d.st_records,   cls: '' },
+        { label: 'Matched',        value: d.matched,      cls: 'highlight-success' },
+        { label: 'Exact Match',    value: d.exact_match,  cls: 'highlight-success' },
+        { label: 'Missing in QBO', value: d.missing_qbo,  cls: d.missing_qbo  > 0 ? 'highlight-warn'    : '' },
+        { label: 'Missing in ST',  value: d.missing_st,   cls: d.missing_st   > 0 ? 'highlight-warn'    : '' },
+        { label: 'Tax Diff',       value: d.tax_diff,     cls: d.tax_diff     > 0 ? 'highlight-danger'  : '' },
+        { label: 'Amount Diff',    value: d.amt_diff,     cls: d.amt_diff     > 0 ? 'highlight-danger'  : '' },
+        { label: 'Review',         value: d.review,       cls: d.review       > 0 ? 'highlight-blue'    : '' },
+      ];
+      grid.innerHTML = stats.map(s => `
+        <div class="stat-card ${s.cls}">
+          <div class="stat-value">${s.value}</div>
+          <div class="stat-label">${s.label}</div>
+        </div>`).join('');
+      grid.style.display = 'grid';
+    }
+
+    function renderWarnings(d) {
+      const warns = [];
+      if (d.qbo_dups > 0) warns.push(`${d.qbo_dups} duplicate invoice numbers found in QBO file — flagged as "Review (Duplicate)".`);
+      if (d.st_dups  > 0) warns.push(`${d.st_dups}  duplicate invoice numbers found in ServiceTitan file — flagged as "Review (Duplicate)".`);
+
+      const section = document.getElementById('warnings');
+      const list = document.getElementById('warnings-list');
+      if (warns.length > 0) {
+        list.innerHTML = '<strong>⚠ Notices:</strong>' + warns.map(w => `<li>${w}</li>`).join('');
+        section.classList.add('visible');
+      }
+    }
+  </script>
+
+</body>
+</html>
